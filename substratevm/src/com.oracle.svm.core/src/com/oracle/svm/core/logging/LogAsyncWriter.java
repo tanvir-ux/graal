@@ -36,10 +36,10 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.CIsolateData;
 import com.oracle.svm.core.c.CIsolateDataFactory;
-import com.oracle.svm.core.logging.LogAsyncWriterStructures.QueueState;
-import com.oracle.svm.core.logging.LogAsyncWriterStructures.Record;
 import com.oracle.svm.core.locks.VMCondition;
 import com.oracle.svm.core.locks.VMMutex;
+import com.oracle.svm.core.logging.LogAsyncWriterStructures.QueueState;
+import com.oracle.svm.core.logging.LogAsyncWriterStructures.Record;
 import com.oracle.svm.core.memory.NullableNativeMemory;
 import com.oracle.svm.core.nmt.NmtCategory;
 import com.oracle.svm.core.nodes.CFunctionEpilogueNode;
@@ -94,7 +94,7 @@ final class LogAsyncWriter {
     private static final long MINIMUM_BUFFER_SIZE = 100L * 1024;
 
     /// Largest supported asynchronous message chunk, matching HotSpot's product maximum.
-    private static final long MAXIMUM_BUFFER_SIZE = 50L * 1024 * 1024;
+    static final long MAXIMUM_BUFFER_SIZE = 50L * 1024 * 1024;
 
     /// Formats the tag prefix into producer-owned thread-local storage before queue reservation.
     private static final NativeMemoryLog PREFIX_BUFFER = new NativeMemoryLog(NativeMemoryLog.BufferKind.DECORATOR);

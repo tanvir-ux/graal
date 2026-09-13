@@ -24,6 +24,8 @@
  */
 package com.oracle.svm.core.logging;
 
+import static com.oracle.svm.core.logging.LogAsyncWriter.Options.AsyncLogBufferSize;
+
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -333,7 +335,12 @@ public abstract class LogOutput {
         OUTPUT_BUFFER.reset();
         LogDecorations decorations = LogDecorations.capture(LogDecorators.DROPPED_MESSAGE);
         writeDecorators(LogDecorators.DROPPED_MESSAGE, decorations, LogLevel.WARNING);
-        OUTPUT_BUFFER.unsigned(Integer.toUnsignedLong(count), 6, Log.RIGHT_ALIGN).string(" messages dropped due to async logging").newline();
+        Long asyncLogBufferSize = AsyncLogBufferSize.getValue();
+        OUTPUT_BUFFER.unsigned(Integer.toUnsignedLong(count), 6, Log.RIGHT_ALIGN).string(" messages dropped due to async logging");
+        if (asyncLogBufferSize < LogAsyncWriter.MAXIMUM_BUFFER_SIZE) {
+            OUTPUT_BUFFER.string(" (try increasing ").string(AsyncLogBufferSize.getName()).string(")");
+        }
+        OUTPUT_BUFFER.newline();
         finishWrite();
     }
 
