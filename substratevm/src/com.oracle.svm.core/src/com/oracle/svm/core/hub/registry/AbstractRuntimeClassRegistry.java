@@ -367,41 +367,26 @@ public abstract sealed class AbstractRuntimeClassRegistry extends AbstractClassR
             String className = DynamicHub.fromClass(clazz).getInterpreterType().toJavaName();
             if (pattern.equals("*") || className.contains(pattern)) {
                 /* Stack capture can allocate and must complete before entering the logging scope. */
-                StackTraceElement[] stackTrace = getCurrentStackTrace();
+                String[] stackTrace = getFormattedCurrentStackTrace();
                 try (LogMessage logMessage = LogTagSet.class_load_cause.message()) {
                     NativeMemoryLog line = logMessage.line(LogLevel.INFO);
                     line.string("Java stack when loading ").string(className);
-                    for (StackTraceElement stackTraceElement : stackTrace) {
-                        traceStackFrame(logMessage.line(LogLevel.INFO), stackTraceElement);
+                    for (String stackTraceElement : stackTrace) {
+                        logMessage.line(LogLevel.INFO).string("  at ").string(stackTraceElement);
                     }
                 }
             }
         }
     }
 
-    /// Writes one stack frame without materializing its conventional string representation.
-    @RestrictHeapAccess(access = NO_ALLOCATION, reason = "Class loading diagnostics must not allocate at run time.")
-    private static void traceStackFrame(NativeMemoryLog line, StackTraceElement frame) {
-        line.string("  at ").string(frame.getClassName()).character('.').string(frame.getMethodName());
-        if (frame.isNativeMethod()) {
-            line.string("(Native Method)");
-        } else {
-            String fileName = frame.getFileName();
-            if (fileName == null) {
-                line.string("(Unknown Source)");
-            } else {
-                line.character('(').string(fileName);
-                int lineNumber = frame.getLineNumber();
-                if (lineNumber >= 0) {
-                    line.character(':').signed(lineNumber);
-                }
-                line.character(')');
-            }
+    /// Captures and formats the current stack before entering a unified logging scope.
+    private static String[] getFormattedCurrentStackTrace() {
+        StackTraceElement[] elements = new Throwable().getStackTrace();
+        String[] result = new String[elements.length];
+        for (int index = 0; index < elements.length; index++) {
+            result[index] = elements[index].toString();
         }
-    }
-
-    private static StackTraceElement[] getCurrentStackTrace() {
-        return new Throwable().getStackTrace();
+        return result;
     }
 
     /// Writes a class-loading event without allocating a formatted string.
