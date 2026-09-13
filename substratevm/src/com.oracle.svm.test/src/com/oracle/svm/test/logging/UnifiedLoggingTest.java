@@ -850,6 +850,28 @@ public final class UnifiedLoggingTest {
         delete(indexedLogFile);
     }
 
+    /// Verifies that file output performs normal rotation while logging from a VM operation.
+    @Test
+    public void testFileOutputFromVMOperation() throws IOException {
+        String logFile = testLogFile("file-output-vm-operation");
+        LogConfiguration.disableLogging();
+        delete(logFile);
+        delete(logFile + ".0");
+        try {
+            checkTrue(LogConfiguration.parseCommandLineArgument("-Xlog:class+load=info:file=" + logFile + ":none:filecount=2,filesize=1"),
+                            "VM operation file output configuration should be accepted");
+
+            new LoggingVMOperation().enqueue();
+
+            checkTrue(Files.exists(Path.of(logFile + ".0")), "VM operation file output should rotate");
+            checkContains(read(logFile + ".0"), "message from VM operation", "rotated output should contain the VM operation message");
+        } finally {
+            LogConfiguration.disableLogging();
+            delete(logFile);
+            delete(logFile + ".0");
+        }
+    }
+
     /// Verifies that first-use, contended writes, and rotation do not allocate on the Java heap.
     @Test
     public void testAllocationFreeOutput() throws Exception {
@@ -1175,7 +1197,7 @@ public final class UnifiedLoggingTest {
             super(VMOperationInfos.get(LoggingVMOperation.class, "Unified logging at safepoint", VMOperation.SystemEffect.SAFEPOINT));
         }
 
-        /// Emits a message whose queue capacity is checked before publication.
+        /// Emits a class-loading message from the VM operation thread.
         @Override
         protected void operate() {
             executingThread = Thread.currentThread();

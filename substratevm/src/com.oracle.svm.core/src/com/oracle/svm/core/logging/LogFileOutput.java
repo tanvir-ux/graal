@@ -39,7 +39,6 @@ import com.oracle.svm.core.os.RawFileOperationSupport.FileAccessMode;
 import com.oracle.svm.core.os.RawFileOperationSupport.FileCreationMode;
 import com.oracle.svm.core.os.RawFileOperationSupport.RawFileDescriptor;
 import com.oracle.svm.core.os.RawFileOperationSupport.RawFilePath;
-import com.oracle.svm.core.thread.VMOperation;
 import com.oracle.svm.guest.staging.core.memory.UntrackedNullableNativeMemory;
 import com.oracle.svm.guest.staging.log.Log;
 import com.oracle.svm.shared.Uninterruptible;
@@ -149,20 +148,12 @@ final class LogFileOutput extends LogOutput {
         return writeRawLocked(bytes, length);
     }
 
+    /// Writes a native byte range while serializing file access and rotation. The complete critical
+    /// section is uninterruptible so that a thread cannot stop at a safepoint while owning the
+    /// mutex.
+    @Uninterruptible(reason = "The output mutex must not be held across a safepoint.")
     private int writeRawLocked(CCharPointer bytes, UnsignedWord length) {
-        if (VMOperation.isInProgress()) {
-            /* Do not wait for an output mutex owned by a thread stopped at this safepoint. */
-            RawFileOperationSupport files = RawFileOperationSupport.nativeByteOrder();
-            if (rawDescriptor == 0) {
-                return ROTATION_OPEN_FAILED;
-            }
-            if (!files.write(descriptor(), (Pointer) bytes, length)) {
-                return WRITE_FAILED;
-            }
-            bytesWritten += length.rawValue();
-            return 0;
-        }
-        mutex.lock();
+        mutex.lockNoTransition();
         try {
             /* Rotation updates the descriptor while holding the same mutex. */
             if (rawDescriptor == 0) {

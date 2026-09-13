@@ -43,10 +43,11 @@ routed to every output enabled by its most severe line. Each output's threshold
 then filters individual lines while preserving their order.
 
 Stream outputs format a complete event in the current thread's output buffer,
-then perform one no-transition raw write while holding their dedicated `VMMutex`.
-File outputs also format before entering their prebuilt mutex, then perform the
-no-transition native write, byte accounting, rotation, and reopen while holding
-that mutex. Consequently, events cannot be interleaved on a destination, file
+then perform one no-transition raw write in an uninterruptible critical section
+that holds their dedicated `VMMutex`. File outputs also format before entering
+their prebuilt mutex, then perform the no-transition native write, byte
+accounting, rotation, and reopen in the same kind of critical section.
+Consequently, events cannot be interleaved on a destination, file
 rotation cannot occur between an event's lines, and formatting does not hold an
 output lock. The low-level VM log fallback uses the synchronization provided by
 `Log.log()` instead of the stream-output mutex. The safepoint consequences of a
@@ -157,10 +158,11 @@ or contending consumer does not prevent a safepoint. It returns to Java state
 before dereferencing a queue record or output, allowing the GC to relocate those
 objects safely. Logging from the consumer itself also bypasses the queue.
 
-The synchronous fallback does not introduce an equivalent logger-lock cycle. A
-VM operation bypasses the stream or file output mutex because its owner may be
-stopped at the current safepoint, and writes the formatted event directly with a
-no-transition platform call. File output does not rotate on this bypass path.
+The synchronous fallback does not introduce an equivalent logger-lock cycle.
+Stream and file output hold their mutex only in an uninterruptible critical
+section, so a thread cannot stop at a safepoint while owning the mutex. Every
+caller, including a VM operation, therefore uses the same serialized output
+path. File output also performs its normal opening and rotation on this path.
 The legacy GC fallback writes to the low-level VM log, which uses its existing
 synchronization rather than a unified-log output mutex.
 `LogConfiguration.disableLogging` is not supported while a VM operation is in
@@ -169,11 +171,11 @@ this condition before acquiring the configuration monitor.
 
 These rules prevent a safepoint deadlock caused by unified logging's own locks,
 but they do not make the underlying output device nonblocking. All direct stream
-and file output uses no-transition writes. A thread blocked by a full pipe or
-stalled file system, including the asynchronous consumer, can delay entry into a
-safepoint. If the VM operation thread blocks while logging synchronously, it
-cannot complete the operation or end the active safepoint, so the pause can be
-extended indefinitely.
+and file output uses an uninterruptible output mutex and no-transition writes. A
+thread blocked on that mutex, by a full pipe, or by a stalled file system,
+including the asynchronous consumer, can delay entry into a safepoint. If the VM
+operation thread blocks while logging synchronously, it cannot complete the
+operation or end the active safepoint, so the pause can be extended indefinitely.
 
 HotSpot has the same external I/O liveness limitation. `VMThread::inner_execute`
 executes an at-safepoint operation between
@@ -383,7 +385,7 @@ SVM uses the same broad configuration model but a smaller runtime design:
 | Runtime modes | Synchronous by default; `-Xlog:async` adds a bounded queue and writer thread. | Synchronous by default; `-Xlog:async[:drop\|stall]` uses a preallocated native byte queue and a writer thread. VM operations preflight complete messages and write synchronously when immediate admission is unsafe. |
 | Output routing | Per-level linked-list heads with atomic reader tracking. | Per-tag-set, per-level immutable output arrays published through volatile fields. The legacy GC fallback uses the same table with a low-level VM-log destination. |
 | Configuration | `ConfigurationLock` and reader counts protect updates and delayed reclamation; `jcmd VM.log` supports runtime changes. | Synchronized configuration methods publish replacement arrays. Configuration is startup-oriented except for GC verbosity changes through `MemoryMXBean`. JFR combines the fast enablement threshold needed by its independent standalone and unified sinks, then filters each sink separately. |
-| Synchronous output locking | `FileLocker` protects writes; a rotation semaphore covers file rotation. | Stream outputs serialize no-transition native writes with a dedicated `VMMutex`; file outputs use a prebuilt `VMMutex` across the no-transition write, accounting, rotation, and reopen. A VM operation bypasses the output mutex. |
+| Synchronous output locking | `FileLocker` protects writes; a rotation semaphore covers file rotation. | Stream outputs use an uninterruptible critical section to serialize no-transition native writes with a dedicated `VMMutex`; file outputs use the same pattern with a prebuilt `VMMutex` across the no-transition write, accounting, rotation, and reopen. VM operations use the same serialized paths. |
 | Asynchronous buffering and locking | Native ping-pong buffers and producer and consumer synchronization protect the queue. | One native chunk contains a variable number of word-aligned raw records with inline bytes. Native ring state, `VMMutex` producer and consumer locks, and a `VMCondition` coordinate publication, waiting, consumption, flushing, and VM teardown. The daemon consumer waits in native state and is terminated before the chunk is freed at isolate destruction. |
 | Decoration state | Resolved event decorations can remain in asynchronous messages. | Event-only decorations live in fast thread-local state and are copied into each asynchronous queue record; line levels remain explicit per line or record. |
 | File rotation | Native C++ file streams and rotation locks. | Precomputed native paths, native byte counters, and raw close/delete/rename/reopen operations. |

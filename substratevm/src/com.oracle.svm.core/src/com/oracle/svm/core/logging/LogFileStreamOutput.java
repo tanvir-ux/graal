@@ -31,8 +31,8 @@ import org.graalvm.nativeimage.c.type.CTypeConversion;
 import org.graalvm.word.UnsignedWord;
 
 import com.oracle.svm.core.locks.VMMutex;
-import com.oracle.svm.core.thread.VMOperation;
 import com.oracle.svm.guest.staging.log.Log;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.util.SubstrateUtil;
 
 /// Writes log messages to `stdout`, `stderr`, or [Log#log()].
@@ -71,14 +71,12 @@ final class LogFileStreamOutput extends LogOutput {
         return writeRawLocked(LoggingSupport.singleton(), bytes, length);
     }
 
-    /// Writes a native byte range while serializing ordinary writes. A VM operation bypasses the
-    /// mutex so that it cannot wait for an owner stopped at the current safepoint.
+    /// Writes a native byte range while serializing access to the stream. The complete critical
+    /// section is uninterruptible so that a thread cannot stop at a safepoint while owning the
+    /// mutex.
+    @Uninterruptible(reason = "The output mutex must not be held across a safepoint.")
     private int writeRawLocked(LoggingSupport loggingSupport, CCharPointer bytes, UnsignedWord length) {
-        if (VMOperation.isInProgress()) {
-            /* A thread stopped for the current safepoint may still own the output mutex. */
-            return loggingSupport.write(target == Target.STDERR, bytes, length) ? 0 : WRITE_FAILED;
-        }
-        mutex.lock();
+        mutex.lockNoTransition();
         try {
             /* Synchronous logging intentionally uses a no-transition write, as HotSpot does. */
             return loggingSupport.write(target == Target.STDERR, bytes, length) ? 0 : WRITE_FAILED;
