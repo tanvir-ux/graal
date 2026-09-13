@@ -46,7 +46,9 @@ Stream outputs format a complete event in the current thread's output buffer,
 then perform one no-transition raw write in an uninterruptible critical section
 that holds their dedicated `VMMutex`. File outputs also format before entering
 their prebuilt mutex, then perform the no-transition native write, byte
-accounting, rotation, and reopen in the same kind of critical section.
+accounting, rotation, and reopen in the same kind of critical section. A file
+output discards any preexisting active file contents at startup regardless of
+its rotation configuration; only output from the current process is rotated.
 Consequently, events cannot be interleaved on a destination, file
 rotation cannot occur between an event's lines, and formatting does not hold an
 output lock. The low-level VM log fallback uses the synchronization provided by
@@ -388,7 +390,7 @@ SVM uses the same broad configuration model but a smaller runtime design:
 | Synchronous output locking | `FileLocker` protects writes; a rotation semaphore covers file rotation. | Stream outputs use an uninterruptible critical section to serialize no-transition native writes with a dedicated `VMMutex`; file outputs use the same pattern with a prebuilt `VMMutex` across the no-transition write, accounting, rotation, and reopen. VM operations use the same serialized paths. |
 | Asynchronous buffering and locking | Native ping-pong buffers and producer and consumer synchronization protect the queue. | One native chunk contains a variable number of word-aligned raw records with inline bytes. Native ring state, `VMMutex` producer and consumer locks, and a `VMCondition` coordinate publication, waiting, consumption, flushing, and VM teardown. The daemon consumer waits in native state and is terminated before the chunk is freed at isolate destruction. |
 | Decoration state | Resolved event decorations can remain in asynchronous messages. | Event-only decorations live in fast thread-local state and are copied into each asynchronous queue record; line levels remain explicit per line or record. |
-| File rotation | Native C++ file streams and rotation locks. | Precomputed native paths, native byte counters, and raw close/delete/rename/reopen operations. |
+| File rotation | Native C++ file streams and rotation locks. An existing active file is archived at startup when rotation is enabled. | Precomputed native paths, native byte counters, and raw close/delete/rename/reopen operations. An existing active file is truncated at startup regardless of rotation settings. |
 | JFR integration | JFR writes directly through HotSpot unified logging. | SVM preserves its standalone `FlightRecorderLogging` output and optionally emits a second copy through unified logging. |
 | Allocation contract | Native C++ allocation rules apply. | Successful event processing, including dual JFR routing, is explicitly Java-heap allocation-free; native buffers may grow. |
 

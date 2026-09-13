@@ -175,26 +175,13 @@ final class LogFileOutput extends LogOutput {
         }
     }
 
-    /// Opens a fresh active file, archiving a preexisting file when rotation is enabled.
+    /// Opens a fresh active file after discarding any preexisting contents. Unlike HotSpot,
+    /// rotation does not archive an active file left by an earlier process during initialization.
     @BasedOnJDKFile("https://github.com/graalvm/labs-openjdk/blob/jdk-25+36/src/hotspot/share/logging/logFileOutput.cpp#L220-L252")
     private void ensureOpen() {
         RawFileOperationSupport files = RawFileOperationSupport.nativeByteOrder();
         if (rawDescriptor == 0) {
-            RawFileDescriptor descriptor;
-            if (fileCount > 0) {
-                RawFileDescriptor existingDescriptor = files.open(path, FileAccessMode.WRITE);
-                if (files.isValid(existingDescriptor)) {
-                    files.close(existingDescriptor);
-                    if (!archiveActiveFile()) {
-                        Log.log().string("Could not archive existing log file ").string(pathName).newline();
-                        return;
-                    }
-                }
-                /* CREATE avoids truncation if the existence check raced with another creator. */
-                descriptor = files.create(path, FileCreationMode.CREATE, FileAccessMode.WRITE);
-            } else {
-                descriptor = files.create(path, FileCreationMode.CREATE_OR_REPLACE, FileAccessMode.WRITE);
-            }
+            RawFileDescriptor descriptor = files.create(path, FileCreationMode.CREATE_OR_REPLACE, FileAccessMode.WRITE);
             if (!files.isValid(descriptor)) {
                 Log.log().string("Could not open file ") //
                                 .string(pathName) //

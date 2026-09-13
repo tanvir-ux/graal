@@ -812,10 +812,10 @@ public final class UnifiedLoggingTest {
         checkTrue(LogConfiguration.parseCommandLineArgument("-Xlog:class+load=debug:file=" + existingLogFile + ":none:filecount=2"), "existing file output configuration should be accepted");
         LogTagSet.class_load.debug("new active log contents");
         LogConfiguration.disableLogging();
-        checkContains(read(existingLogFile + ".0"), "existing log contents", "a preexisting active file should be archived at startup");
-        checkContains(read(existingLogFile), "new active log contents", "startup should write to a fresh active file");
+        checkFalse(Files.exists(Path.of(existingLogFile + ".0")), "a preexisting active file should not be archived at startup");
+        checkNotContains(read(existingLogFile), "existing log contents", "startup should discard preexisting active file contents");
+        checkContains(read(existingLogFile), "new active log contents", "startup should write to the replaced active file");
         delete(existingLogFile);
-        delete(existingLogFile + ".0");
 
         delete(rotatingLogFile);
         delete(rotatingLogFile + ".0");

@@ -782,7 +782,7 @@ public final class LogConfiguration {
 
                 Additional file output options:
                  filesize=..       - Target byte size for log rotation (supports K/M/G suffix). If set to 0, log rotation is disabled.
-                 filecount=..      - Number of files to keep in rotation (not counting the active file). If set to 0, log rotation is disabled. This will cause existing log files to be overwritten.
+                 filecount=..      - Number of files to keep in rotation (not counting the active file). If set to 0, log rotation is disabled. The active file is overwritten when logging starts.
 
                 Asynchronous logging (off by default):
                  -Xlog:async[:[mode]]
