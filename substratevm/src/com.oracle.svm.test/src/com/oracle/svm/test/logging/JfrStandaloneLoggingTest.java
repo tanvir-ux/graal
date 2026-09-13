@@ -70,8 +70,7 @@ public final class JfrStandaloneLoggingTest {
             Thread writer = new Thread(() -> LogTagSet.gc.info("fallback thread-local lifecycle message"));
             writer.start();
             writer.join();
-            assertEquals("fallback logging buffers must be released after thread exit", baseline,
-                            NativeMemoryTracking.singleton().getMallocMemory(NmtCategory.Logging));
+            awaitLoggingMemory(baseline);
         } finally {
             LogConfiguration.updateGCLogging(LogLevel.OFF);
         }
@@ -136,6 +135,22 @@ public final class JfrStandaloneLoggingTest {
             logging.parseConfiguration("all=warning");
             closeLog.execute(false);
             Files.deleteIfExists(Path.of(logFile));
+        }
+    }
+
+    /// Waits for post-termination thread listeners to release native logging state.
+    private static void awaitLoggingMemory(long expected) {
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (true) {
+            long actual = NativeMemoryTracking.singleton().getMallocMemory(NmtCategory.Logging);
+            if (actual == expected) {
+                return;
+            }
+            if (System.nanoTime() >= deadline) {
+                assertEquals("fallback logging buffers must be released after thread exit", expected, actual);
+                return;
+            }
+            Thread.onSpinWait();
         }
     }
 }

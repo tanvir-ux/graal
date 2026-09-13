@@ -466,7 +466,7 @@ public final class UnifiedLoggingTest {
         });
         writer.start();
         writer.join();
-        checkEquals(NativeMemoryTracking.singleton().getMallocMemory(NmtCategory.Logging), baseline, "thread-local logging buffers should be released after thread exit");
+        awaitLoggingMemory(baseline);
     }
 
     /// Verifies that thread start eagerly allocates logging state only while async output is active.
@@ -1146,6 +1146,22 @@ public final class UnifiedLoggingTest {
         while (!tagSet.decorators.contains(decorator)) {
             if (System.nanoTime() >= deadline) {
                 throw new AssertionError("Timed out waiting for the " + decorator.label() + " decorator transition");
+            }
+            Thread.onSpinWait();
+        }
+    }
+
+    /// Waits for post-termination thread listeners to release native logging state.
+    private static void awaitLoggingMemory(long expected) {
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (true) {
+            long actual = NativeMemoryTracking.singleton().getMallocMemory(NmtCategory.Logging);
+            if (actual == expected) {
+                return;
+            }
+            if (System.nanoTime() >= deadline) {
+                checkEquals(actual, expected, "thread-local logging buffers should be released after thread exit");
+                return;
             }
             Thread.onSpinWait();
         }
