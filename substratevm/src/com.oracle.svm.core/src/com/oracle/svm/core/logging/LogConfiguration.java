@@ -653,6 +653,11 @@ public final class LogConfiguration {
             throw new IllegalArgumentException("Could not allocate native path for unified log file '" + expandedFilename + "'.");
         }
         for (LogFileOutput output : OUTPUTS) {
+            /*
+             * After a successful open, output.path() is guaranteed to denote an existing file, so
+             * sameFiles can recognize aliases. If opening failed, an identical raw path still
+             * finds the output.
+             */
             if (fileSupport.sameFiles(output.path(), path)) {
                 UntrackedNullableNativeMemory.free(path);
                 return output;

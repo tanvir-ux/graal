@@ -110,6 +110,10 @@ public interface RawFileOperationSupport {
     String getTempDirectory();
 
     /// Returns whether `f1` and `f2` identify the same file.
+    ///
+    /// If either path denotes an existing file, this returns `true` only when both paths denote the
+    /// same operating system file. If neither path denotes an existing file, this returns `true`
+    /// only when their platform-specific raw strings are identical.
     boolean sameFiles(RawFilePath f1, RawFilePath f2);
 
     /**
