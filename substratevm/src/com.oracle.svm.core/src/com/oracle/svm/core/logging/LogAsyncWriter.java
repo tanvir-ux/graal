@@ -33,6 +33,7 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
+import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.CIsolateData;
 import com.oracle.svm.core.c.CIsolateDataFactory;
@@ -674,6 +675,12 @@ final class LogAsyncWriter {
         if (value == null || value < MINIMUM_BUFFER_SIZE || value > MAXIMUM_BUFFER_SIZE) {
             throw new IllegalArgumentException("AsyncLogBufferSize must be between 100K and 50M.");
         }
+    }
+
+    /// Returns whether the image permits the dedicated asynchronous logging thread.
+    @Fold
+    static boolean isSupported() {
+        return SubstrateOptions.AllowVMInternalThreads.getValue();
     }
 
     @Fold

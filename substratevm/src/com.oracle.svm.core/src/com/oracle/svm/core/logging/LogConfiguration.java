@@ -493,6 +493,9 @@ public final class LogConfiguration {
 
     /// Parses the optional asynchronous logging mode from `options`.
     private static void configureAsync(String options) {
+        if (!LogAsyncWriter.isSupported()) {
+            throw new IllegalArgumentException("Asynchronous logging requires VM internal threads, which are disabled by -H:-AllowVMInternalThreads.");
+        }
         String mode = options.length() == "async".length() ? "drop" : options.substring("async:".length());
         if (!mode.equals("drop") && !mode.equals("stall")) {
             throw new IllegalArgumentException("Invalid async logging mode '" + mode + "'. Expected 'drop' or 'stall'.");
