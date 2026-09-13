@@ -35,6 +35,8 @@ import static jdk.graal.compiler.core.common.spi.ForeignCallDescriptor.CallSideE
 
 import java.util.Map;
 
+import org.graalvm.collections.EconomicSet;
+import org.graalvm.collections.Equivalence;
 import org.graalvm.nativeimage.CurrentIsolate;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Isolate;
@@ -538,7 +540,10 @@ public final class CEntryPointSnippets extends SubstrateTemplates implements Sni
         } catch (IllegalArgumentException e) {
             RuntimeOptionParser.abortLoggingInitialization();
             Log.logStream().println("Error: " + e.getMessage());
-            for (Throwable cause = e.getCause(); cause != null; cause = cause.getCause()) {
+            /* Throwable cause graphs are not guaranteed to be acyclic. */
+            EconomicSet<Throwable> reported = EconomicSet.create(Equivalence.IDENTITY);
+            reported.add(e);
+            for (Throwable cause = e.getCause(); cause != null && reported.add(cause); cause = cause.getCause()) {
                 Log.logStream().println("Caused by: " + cause.getMessage());
             }
             if (forJavaMainCall) {
