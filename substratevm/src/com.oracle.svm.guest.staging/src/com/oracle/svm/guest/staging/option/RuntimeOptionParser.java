@@ -240,10 +240,7 @@ public final class RuntimeOptionParser {
 
             ParseContext context = new ParseContext();
             dependencyBridge.initializeLogging();
-            initializeJavaVMProperties(initialArgs, context);
             String[] args = parseJavaVMOptions(initialArgs, context);
-            // The full parse adds normalized module properties that are absent from the early -D prepass.
-            initializeProperties(context.properties);
             args = consumeCompatibilityOptions(args);
             args = singleton().parse(args, ignoreUnrecognized);
             if (GuestStagingDependencyBridge.singleton().strictRuntimeJavaOptions()) {
@@ -452,6 +449,13 @@ public final class RuntimeOptionParser {
             args[newIdx] = arg;
             newIdx++;
         }
+
+        /*
+         * Later runtime option parsing can execute non-trivial Java code via option value updates.
+         * Initialize all system properties first so JDK code cannot cache stale values.
+         */
+        initializeProperties(context.properties);
+
         return newIdx == args.length ? args : Arrays.copyOf(args, newIdx);
     }
 
@@ -475,14 +479,6 @@ public final class RuntimeOptionParser {
         return true;
     }
 
-    /// Installs command-line properties before option callbacks initialize JDK state.
-    private static void initializeJavaVMProperties(String[] args, ParseContext context) {
-        for (String arg : args) {
-            parseProperty(arg, context);
-        }
-        initializeProperties(context.properties);
-    }
-
     /// Applies legacy GC options in command-line order with `-Xlog` selections.
     private static boolean parseLegacyGCOption(String arg) {
         if (arg.equals("-XX:+PrintGC") || arg.equals("-XX:-PrintGC") || arg.equals("-XX:+VerboseGC") || arg.equals("-XX:-VerboseGC")) {
@@ -493,7 +489,7 @@ public final class RuntimeOptionParser {
         return false;
     }
 
-    /// Initializes system properties derived from recognized Java VM options.
+    /// Initializes system properties collected from recognized Java VM options.
     ///
     /// @param properties the VM option-derived system properties to initialize
     private static void initializeProperties(EconomicMap<String, String> properties) {
@@ -801,8 +797,7 @@ public final class RuntimeOptionParser {
     }
 
     private static final class ParseContext {
-        /// Collects command-line system properties during the initialization prepass and option
-        /// consumption.
+        /// Collects command-line and normalized module system properties during option parsing.
         final EconomicMap<String, String> properties = EconomicMap.create();
 
         /// Next numbered-property slot for decoded `--add-modules` options.
