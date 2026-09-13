@@ -83,6 +83,9 @@ public final class UnifiedLoggingTest {
     /// Preallocated multiline event used by the allocation-restriction test.
     private static final String[] JFR_EVENT_LINES = {"JFR event line 1", "JFR event line 2"};
 
+    /// JFR event used to verify that the SVM sinks skip null entries.
+    private static final String[] JFR_EVENT_LINES_WITH_NULL = {"JFR event line 1", null, "JFR event line 2"};
+
     /// Payload large enough to fill the byte queue with a modest number of records.
     private static final String ASYNC_QUEUE_FILLER = "x".repeat(8 * 1024);
 
@@ -330,11 +333,15 @@ public final class UnifiedLoggingTest {
             }
             standaloneOutput = read(standaloneLogFile);
             checkNotContains(standaloneOutput, "JFR event line 1", "the standalone system event threshold should filter INFO records");
+            jfrLogging.logEvent(LogLevel.INFO.ordinal(), JFR_EVENT_LINES_WITH_NULL, true);
             jdk.jfr.internal.Logger.logEvent(jdk.jfr.internal.LogLevel.INFO, JFR_EVENT_LINES, false);
+            jfrLogging.logEvent(LogLevel.INFO.ordinal(), JFR_EVENT_LINES_WITH_NULL, false);
             standaloneOutput = read(standaloneLogFile);
             checkContains(standaloneOutput, "][jfr,event] JFR event line 1", "the standalone event threshold should admit INFO records");
             checkContains(standaloneOutput, "][jfr,event] JFR event line 2", "standalone event routing should write every event line");
+            checkNotContains(standaloneOutput, "][jfr,event] null", "standalone event routing should skip null entries");
             checkContains(read(eventLogFile), "JFR event line 1\nJFR event line 2\n", "unified event routing should preserve one contiguous multiline message");
+            checkNotContains(read(eventLogFile), "null", "unified event routing should skip null entries");
         } finally {
             LogConfiguration.disableLogging();
             jfrLogging.parseConfiguration("all=warning");

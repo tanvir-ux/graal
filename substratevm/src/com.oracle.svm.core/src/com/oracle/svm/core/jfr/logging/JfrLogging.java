@@ -151,7 +151,9 @@ public class JfrLogging {
         int tagSetId = system ? systemEventTagSetId : eventTagSetId;
         if (standaloneLevelEnables(tagSetId, level)) {
             for (String line : lines) {
-                logStandalone(tagSetId, level, line);
+                if (line != null) {
+                    logStandalone(tagSetId, level, line);
+                }
             }
         }
         JfrUnifiedLogging.logEvent(level, lines, system);

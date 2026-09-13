@@ -117,7 +117,9 @@ public final class JfrUnifiedLogging {
             LogMessage message = logTag.message();
             try {
                 for (String line : lines) {
-                    message.line(logLevel).string(line);
+                    if (line != null) {
+                        message.line(logLevel).string(line);
+                    }
                 }
             } finally {
                 message.close();
