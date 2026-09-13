@@ -83,12 +83,13 @@ import jdk.graal.compiler.options.OptionType;
 ///
 /// Together these rules prevent asynchronous logging from creating a cycle in which a VM
 /// operation waits for a thread stopped by its own safepoint. They do not make output I/O
-/// nonblocking. Synchronous fallback can still delay a VM operation in destination I/O, and I/O can
-/// delay the asynchronous consumer or a flush. Such delays depend on the output destination making
-/// progress rather than on resuming a thread stopped at the safepoint, so they are separate from
-/// the safepoint deadlock prevented here. The consumer remains alive across ordinary logging
-/// reconfiguration and is stopped only by explicit shutdown during VM teardown or failed startup.
-/// Teardown must detach the consumer before an embedded VM's isolate can be destroyed.
+/// nonblocking. Synchronous fallback can still delay a VM operation in destination I/O, and a
+/// blocked no-transition write can delay a safepoint, including when performed by the asynchronous
+/// consumer. Such delays depend on the output destination making progress rather than on resuming a
+/// thread stopped at the safepoint, so they are separate from the safepoint deadlock prevented here.
+/// The consumer remains alive across ordinary logging reconfiguration and is stopped only by
+/// explicit shutdown during VM teardown or failed startup. Teardown must detach the consumer before
+/// an embedded VM's isolate can be destroyed.
 final class LogAsyncWriter {
     /// Smallest supported asynchronous message chunk, matching HotSpot's product minimum.
     private static final long MINIMUM_BUFFER_SIZE = 100L * 1024;

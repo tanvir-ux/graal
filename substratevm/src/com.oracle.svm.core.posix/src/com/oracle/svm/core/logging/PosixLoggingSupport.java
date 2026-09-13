@@ -63,11 +63,6 @@ final class PosixLoggingSupport implements LoggingSupport {
     }
 
     @Override
-    public boolean writeSafepointable(boolean stderr, CCharPointer bytes, UnsignedWord length) {
-        return RawFileOperationSupport.nativeByteOrder().writeSafepointable(Word.signed(stderr ? STDERR_FILENO : STDOUT_FILENO), (Pointer) bytes, length);
-    }
-
-    @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public boolean delete(RawFileOperationSupport.RawFilePath path) {
         return Fcntl.NoTransitions.unlink((CCharPointer) path) == 0;

@@ -62,12 +62,6 @@ final class WindowsLoggingSupport implements LoggingSupport {
     }
 
     @Override
-    public boolean writeSafepointable(boolean stderr, CCharPointer bytes, UnsignedWord length) {
-        RawFileDescriptor descriptor = (RawFileDescriptor) FileAPI.GetStdHandle(stderr ? FileAPI.STD_ERROR_HANDLE() : FileAPI.STD_OUTPUT_HANDLE());
-        return RawFileOperationSupport.nativeByteOrder().writeSafepointable(descriptor, (Pointer) bytes, length);
-    }
-
-    @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public boolean delete(RawFileOperationSupport.RawFilePath path) {
         return WindowsFileNames.delete((WCharPointer) path) != 0;

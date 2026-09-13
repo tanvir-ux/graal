@@ -72,16 +72,16 @@ final class LogFileStreamOutput extends LogOutput {
     }
 
     /// Writes a native byte range while serializing ordinary writes. A VM operation bypasses the
-    /// mutex so that it cannot wait for a thread stopped at its safepoint.
+    /// mutex so that it cannot wait for an owner stopped at the current safepoint.
     private int writeRawLocked(LoggingSupport loggingSupport, CCharPointer bytes, UnsignedWord length) {
         if (VMOperation.isInProgress()) {
-            /* The consumer may be stopped in native code while owning the mutex. */
+            /* A thread stopped for the current safepoint may still own the output mutex. */
             return loggingSupport.write(target == Target.STDERR, bytes, length) ? 0 : WRITE_FAILED;
         }
         mutex.lock();
         try {
-            /* The bytes are native memory and remain stable across a blocking transition. */
-            return loggingSupport.writeSafepointable(target == Target.STDERR, bytes, length) ? 0 : WRITE_FAILED;
+            /* Synchronous logging intentionally uses a no-transition write, as HotSpot does. */
+            return loggingSupport.write(target == Target.STDERR, bytes, length) ? 0 : WRITE_FAILED;
         } finally {
             mutex.unlock();
         }

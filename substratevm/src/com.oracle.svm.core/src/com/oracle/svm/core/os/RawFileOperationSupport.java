@@ -188,11 +188,6 @@ public interface RawFileOperationSupport {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     boolean write(RawFileDescriptor fd, Pointer data, UnsignedWord size);
 
-    /// Writes native memory while allowing a blocking platform write to enter a safepoint.
-    ///
-    /// @return true if all data was written, false otherwise
-    boolean writeSafepointable(RawFileDescriptor fd, Pointer data, UnsignedWord size);
-
     /**
      * Writes data to the current file position and advances the file position.
      *

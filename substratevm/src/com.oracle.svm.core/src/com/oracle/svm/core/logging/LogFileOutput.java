@@ -151,7 +151,7 @@ final class LogFileOutput extends LogOutput {
 
     private int writeRawLocked(CCharPointer bytes, UnsignedWord length) {
         if (VMOperation.isInProgress()) {
-            /* Do not wait for a consumer that is stopped in native output while owning the mutex. */
+            /* Do not wait for an output mutex owned by a thread stopped at this safepoint. */
             RawFileOperationSupport files = RawFileOperationSupport.nativeByteOrder();
             if (rawDescriptor == 0) {
                 return ROTATION_OPEN_FAILED;
@@ -171,7 +171,7 @@ final class LogFileOutput extends LogOutput {
                 }
             }
             RawFileOperationSupport files = RawFileOperationSupport.nativeByteOrder();
-            if (!files.writeSafepointable(descriptor(), (Pointer) bytes, length)) {
+            if (!files.write(descriptor(), (Pointer) bytes, length)) {
                 return WRITE_FAILED;
             }
             bytesWritten += length.rawValue();

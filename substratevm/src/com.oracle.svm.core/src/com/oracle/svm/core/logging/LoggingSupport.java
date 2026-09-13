@@ -43,13 +43,12 @@ public interface LoggingSupport {
         return ImageSingletons.lookup(LoggingSupport.class);
     }
 
-    /// Writes a native byte range to standard output or standard error.
+    /// Writes a native byte range to standard output or standard error without a thread status
+    /// transition. A blocked synchronous write can therefore delay safepoint progress.
     ///
     /// @return true on success
+    @Uninterruptible(reason = "Synchronous logging uses a no-transition platform write.")
     boolean write(boolean stderr, CCharPointer bytes, UnsignedWord length);
-
-    /// Writes a native byte range while allowing a blocking stream write to enter a safepoint.
-    boolean writeSafepointable(boolean stderr, CCharPointer bytes, UnsignedWord length);
 
     /// Deletes a path converted to native memory during configuration.
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)

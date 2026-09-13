@@ -123,12 +123,6 @@ public class WebImageRawFileOperationSupport implements RawFileOperationSupport 
     }
 
     @Override
-    public boolean writeSafepointable(RawFileDescriptor fd, Pointer data, UnsignedWord size) {
-        /* Web Image has no raw file descriptor that could support a blocking write. */
-        throw UNSUPPORTED_OPERATION;
-    }
-
-    @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public boolean write(RawFileDescriptor fd, byte[] data) {
         throw UNSUPPORTED_OPERATION;

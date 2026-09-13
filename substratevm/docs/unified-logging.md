@@ -43,13 +43,14 @@ routed to every output enabled by its most severe line. Each output's threshold
 then filters individual lines while preserving their order.
 
 Stream outputs format a complete event in the current thread's output buffer,
-then perform one raw write while holding their dedicated `VMMutex`. File outputs
-also format before entering their prebuilt mutex, then perform the native write,
-byte accounting, rotation, and reopen in one uninterruptible `lockNoTransition`
-critical section. Consequently, events cannot be interleaved on a destination,
-file rotation cannot occur between an event's lines, and formatting does not
-hold an output lock. The low-level VM log fallback uses the synchronization
-provided by `Log.log()` instead of the stream-output mutex.
+then perform one no-transition raw write while holding their dedicated `VMMutex`.
+File outputs also format before entering their prebuilt mutex, then perform the
+no-transition native write, byte accounting, rotation, and reopen while holding
+that mutex. Consequently, events cannot be interleaved on a destination, file
+rotation cannot occur between an event's lines, and formatting does not hold an
+output lock. The low-level VM log fallback uses the synchronization provided by
+`Log.log()` instead of the stream-output mutex. The safepoint consequences of a
+blocked raw write are described below.
 
 `LogDecorations` is a reusable event record. It captures the wall-clock
 timestamp, isolate uptime, and thread id once before an event is sent to its
@@ -156,22 +157,40 @@ or contending consumer does not prevent a safepoint. It returns to Java state
 before dereferencing a queue record or output, allowing the GC to relocate those
 objects safely. Logging from the consumer itself also bypasses the queue.
 
-The synchronous fallback does not introduce an equivalent logger-lock cycle.
-Stream and file outputs format an entire event before entering an uninterruptible
-`lockNoTransition` critical section. The stream critical section covers the raw
-write, while the file critical section also covers byte accounting, rotation,
-and reopen operations. A thread cannot be stopped at a safepoint while it owns
-either output mutex. The legacy GC fallback writes to the low-level VM log,
-which uses its existing synchronization rather than a unified-log output mutex.
+The synchronous fallback does not introduce an equivalent logger-lock cycle. A
+VM operation bypasses the stream or file output mutex because its owner may be
+stopped at the current safepoint, and writes the formatted event directly with a
+no-transition platform call. File output does not rotate on this bypass path.
+The legacy GC fallback writes to the low-level VM log, which uses its existing
+synchronization rather than a unified-log output mutex.
 `LogConfiguration.disableLogging` is not supported while a VM operation is in
 progress because flushing acquires queue locks and can wait for output; it checks
 this condition before acquiring the configuration monitor.
 
-These rules prevent a safepoint deadlock caused by unified logging's own locks.
-They do not make the underlying output device non-blocking: a no-transition raw
-write can still be delayed by a full pipe or stalled file system and thereby
-delay safepoint completion. Such a delay is an external I/O liveness problem,
-not a cycle among unified-logging locks.
+These rules prevent a safepoint deadlock caused by unified logging's own locks,
+but they do not make the underlying output device nonblocking. All direct stream
+and file output uses no-transition writes. A thread blocked by a full pipe or
+stalled file system, including the asynchronous consumer, can delay entry into a
+safepoint. If the VM operation thread blocks while logging synchronously, it
+cannot complete the operation or end the active safepoint, so the pause can be
+extended indefinitely.
+
+HotSpot has the same external I/O liveness limitation. `VMThread::inner_execute`
+executes an at-safepoint operation between
+[`SafepointSynchronize::begin()` and `SafepointSynchronize::end()`](https://github.com/graalvm/labs-openjdk/blob/jdk25/src/hotspot/share/runtime/vmThread.cpp#L415-L433),
+and [`VM_Operation::evaluate()` calls `doit()`](https://github.com/graalvm/labs-openjdk/blob/jdk25/src/hotspot/share/runtime/vmOperations.cpp#L65-L80)
+inside that interval. Its synchronous
+[`LogFileStreamOutput::write_blocking`](https://github.com/graalvm/labs-openjdk/blob/jdk25/src/hotspot/share/logging/logFileStreamOutput.cpp#L170-L174)
+holds the output lock across the write and flush. HotSpot's asynchronous drop
+mode normally decouples the producer from output I/O, while stall mode can wait
+for buffer capacity; see
+[`AsyncLogWriter::enqueue_locked`](https://github.com/graalvm/labs-openjdk/blob/jdk25/src/hotspot/share/logging/logAsyncWriter.cpp#L120-L139).
+SVM likewise avoids output I/O on a producer when enqueueing succeeds, but an
+oversized record or an unsafe VM-operation enqueue falls back to synchronous
+output and retains the same liveness limitation. The asynchronous consumer can
+still block in the output device and delay entry into a safepoint. SVM VM
+operations never wait for asynchronous queue capacity because they preflight the
+complete message.
 
 When `-Xlog` is supported, the asynchronous writer is created by
 `LogConfiguration.logInitializationComplete` after command-line parsing and
@@ -364,7 +383,7 @@ SVM uses the same broad configuration model but a smaller runtime design:
 | Runtime modes | Synchronous by default; `-Xlog:async` adds a bounded queue and writer thread. | Synchronous by default; `-Xlog:async[:drop\|stall]` uses a preallocated native byte queue and a writer thread. VM operations preflight complete messages and write synchronously when immediate admission is unsafe. |
 | Output routing | Per-level linked-list heads with atomic reader tracking. | Per-tag-set, per-level immutable output arrays published through volatile fields. The legacy GC fallback uses the same table with a low-level VM-log destination. |
 | Configuration | `ConfigurationLock` and reader counts protect updates and delayed reclamation; `jcmd VM.log` supports runtime changes. | Synchronized configuration methods publish replacement arrays. Configuration is startup-oriented except for GC verbosity changes through `MemoryMXBean`. JFR combines the fast enablement threshold needed by its independent standalone and unified sinks, then filters each sink separately. |
-| Synchronous output locking | `FileLocker` protects writes; a rotation semaphore covers file rotation. | Stream outputs serialize native writes with a dedicated `VMMutex`; file outputs format before taking a prebuilt `VMMutex`, then perform native write, accounting, rotation, and reopen in an uninterruptible critical section. |
+| Synchronous output locking | `FileLocker` protects writes; a rotation semaphore covers file rotation. | Stream outputs serialize no-transition native writes with a dedicated `VMMutex`; file outputs use a prebuilt `VMMutex` across the no-transition write, accounting, rotation, and reopen. A VM operation bypasses the output mutex. |
 | Asynchronous buffering and locking | Native ping-pong buffers and producer and consumer synchronization protect the queue. | One native chunk contains a variable number of word-aligned raw records with inline bytes. Native ring state, `VMMutex` producer and consumer locks, and a `VMCondition` coordinate publication, waiting, consumption, flushing, and VM teardown. The daemon consumer waits in native state and is terminated before the chunk is freed at isolate destruction. |
 | Decoration state | Resolved event decorations can remain in asynchronous messages. | Event-only decorations live in fast thread-local state and are copied into each asynchronous queue record; line levels remain explicit per line or record. |
 | File rotation | Native C++ file streams and rotation locks. | Precomputed native paths, native byte counters, and raw close/delete/rename/reopen operations. |

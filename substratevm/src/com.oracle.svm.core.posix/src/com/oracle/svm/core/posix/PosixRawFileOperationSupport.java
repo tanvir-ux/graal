@@ -183,14 +183,6 @@ public class PosixRawFileOperationSupport extends AbstractRawFileOperationSuppor
         return PosixUtils.writeUninterruptibly(posixFd, data, size);
     }
 
-    @Override
-    public boolean writeSafepointable(RawFileDescriptor fd, Pointer data, UnsignedWord size) {
-        if (!isValid(fd)) {
-            return false;
-        }
-        return PosixUtils.writeSafepointable(getPosixFileDescriptor(fd), data, size);
-    }
-
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     @Override
     public long read(RawFileDescriptor fd, Pointer buffer, UnsignedWord bufferSize) {
