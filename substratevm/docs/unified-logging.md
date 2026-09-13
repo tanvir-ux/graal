@@ -93,11 +93,11 @@ The default mode is `drop`. The native byte budget is configured with the
 immutable expert runtime option `-XX:AsyncLogBufferSize=<size>`. Its default is
 `2M`, standard `K`, `M`, and `G` suffixes are accepted, and valid values range
 from `100K` through `50M`. In `drop` mode, a producer returns without blocking
-for queue space when no record fits; it can still contend while
-acquiring the producer and consumer locks. If the queue fills partway through
-a multi-line batch, already-published lines remain queued and each later line
-that finds the queue full is dropped. The consumer reports accumulated drops
-separately to each affected output as an untagged warning.
+for queue space when a complete logical event does not fit; it can still contend while
+acquiring the producer and consumer locks. A multi-line event is admitted atomically,
+so either all selected lines are queued or the complete event is dropped. The consumer
+reports the accumulated number of dropped events separately to each affected output as
+an untagged warning.
 In `stall` mode, the producer waits for enough byte capacity instead. A record
 that cannot fit even in an empty queue is written synchronously and completely
 in either mode.
