@@ -150,6 +150,13 @@ final class LogAsyncWriter {
 
     /// Allocates the complete queue budget and creates its long-lived output thread.
     LogAsyncWriter() {
+        /*
+         * Create the managed worker first so allocation failure cannot strand an installed native
+         * queue before the writer becomes reachable by initialization rollback.
+         */
+        worker = new Thread(this::run, "SVM AsyncLogWriter");
+        worker.setDaemon(true);
+
         long requestedSize = Options.AsyncLogBufferSize.getValue();
         validateBufferSize(requestedSize);
         int bufferSize = (int) requestedSize;
@@ -166,9 +173,6 @@ final class LogAsyncWriter {
         state.setQueuedRecords(0);
         state.setInFlight(false);
         state.setShutdownRequested(false);
-
-        worker = new Thread(this::run, "SVM AsyncLogWriter");
-        worker.setDaemon(true);
     }
 
     /// Starts the consumer and waits until its thread-start listeners have completed.
