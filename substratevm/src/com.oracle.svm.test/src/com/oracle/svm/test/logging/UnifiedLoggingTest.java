@@ -511,10 +511,10 @@ public final class UnifiedLoggingTest {
         checkContains(output, "[info][class,load] asynchronous line 1\n[info][class,load] asynchronous line 2\n",
                         "asynchronous records should retain producer metadata and omit a trailing blank record");
         checkContains(output, "asynchronous CRLF line 1\n[info][class,load] asynchronous CRLF line 2\n", "asynchronous CRLF should produce one separator");
-        checkNotContains(output, "\r", "asynchronous CRLF should not retain carriage returns");
+        checkNotContains(removePlatformLineSeparators(output), "\r", "asynchronous CRLF should not retain carriage returns");
         String foldedOutput = read(foldedLogFile);
         checkContains(foldedOutput, "asynchronous CRLF line 1\\nasynchronous CRLF line 2\\n", "folded asynchronous CRLF should produce one escaped separator");
-        checkNotContains(foldedOutput, "\r", "folded asynchronous CRLF should not retain carriage returns");
+        checkNotContains(removePlatformLineSeparators(foldedOutput), "\r", "folded asynchronous CRLF should not retain carriage returns");
         delete(logFile);
         delete(foldedLogFile);
     }
@@ -1357,6 +1357,11 @@ public final class UnifiedLoggingTest {
     /// Converts platform-specific line endings so that log content can be compared consistently.
     private static String normalizeLineEndings(String value) {
         return value.replace("\r\n", "\n").replace('\r', '\n');
+    }
+
+    /// Removes output separators so carriage returns originating in message content remain visible.
+    private static String removePlatformLineSeparators(String value) {
+        return value.replace(System.lineSeparator(), "");
     }
 
     /// Fails the test when a target string contains a searched substring.
