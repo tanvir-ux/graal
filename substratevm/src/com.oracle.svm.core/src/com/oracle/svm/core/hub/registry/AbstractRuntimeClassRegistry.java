@@ -366,10 +366,11 @@ public abstract sealed class AbstractRuntimeClassRegistry extends AbstractClassR
         if (pattern != null && LogTagSet.class_load_cause.isInfo()) {
             String className = DynamicHub.fromClass(clazz).getInterpreterType().toJavaName();
             if (pattern.equals("*") || className.contains(pattern)) {
+                /* Stack capture can allocate and must complete before entering the logging scope. */
+                StackTraceElement[] stackTrace = getCurrentStackTrace();
                 try (LogMessage logMessage = LogTagSet.class_load_cause.message()) {
                     NativeMemoryLog line = logMessage.line(LogLevel.INFO);
                     line.string("Java stack when loading ").string(className);
-                    StackTraceElement[] stackTrace = getCurrentStackTrace();
                     for (StackTraceElement stackTraceElement : stackTrace) {
                         traceStackFrame(logMessage.line(LogLevel.INFO), stackTraceElement);
                     }
