@@ -44,6 +44,7 @@ import org.graalvm.word.UnsignedWord;
 import org.junit.Assume;
 import org.junit.Test;
 
+import com.oracle.svm.core.Isolates;
 import com.oracle.svm.core.VMInspectionOptions;
 import com.oracle.svm.core.heap.NoAllocationVerifier;
 import com.oracle.svm.core.heap.VMOperationInfos;
@@ -869,6 +870,24 @@ public final class UnifiedLoggingTest {
             LogConfiguration.disableLogging();
             delete(logFile);
             delete(logFile + ".0");
+        }
+    }
+
+    /// Verifies that `%i` expands to the current isolate identifier in a file output path.
+    @Test
+    public void testIsolateIdFilenamePlaceholder() throws IOException {
+        String logFilePattern = testLogFile("file-output-isolate-%i");
+        String logFile = logFilePattern.replace("%i", Long.toString(Isolates.getIsolateId()));
+        LogConfiguration.disableLogging();
+        delete(logFile);
+        try {
+            checkTrue(LogConfiguration.parseCommandLineArgument("-Xlog:class+load=info:file=" + logFilePattern + ":none"), "isolate file output configuration should be accepted");
+            LogTagSet.class_load.info("isolate-specific file output");
+            LogConfiguration.disableLogging();
+            checkContains(read(logFile), "isolate-specific file output", "the isolate placeholder should identify the current isolate");
+        } finally {
+            LogConfiguration.disableLogging();
+            delete(logFile);
         }
     }
 

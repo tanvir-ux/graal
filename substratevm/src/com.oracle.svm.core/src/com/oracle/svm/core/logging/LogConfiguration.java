@@ -773,7 +773,7 @@ public final class LogConfiguration {
                 Available log outputs:
                  stdout/stderr
                  file=<filename>
-                  If the filename contains %p, %t and/or %hn, they will expand to the JVM's PID, startup timestamp and host name, respectively.
+                  If the filename contains %p, %i, %t and/or %hn, they will expand to the JVM's PID, isolate ID, startup timestamp and host name, respectively.
 
                 Available log output options:
                  foldmultilines=.. - If set to true, a log event that consists of multiple lines will be folded into a single line by replacing newline characters with the sequence '\\' and 'n' in the output.

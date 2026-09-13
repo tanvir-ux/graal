@@ -33,6 +33,7 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
+import com.oracle.svm.core.Isolates;
 import com.oracle.svm.core.locks.VMMutex;
 import com.oracle.svm.core.os.RawFileOperationSupport;
 import com.oracle.svm.core.os.RawFileOperationSupport.FileAccessMode;
@@ -332,10 +333,14 @@ final class LogFileOutput extends LogOutput {
         return Word.pointer(rawDescriptor);
     }
 
+    /// Expands process, isolate, startup time, and host placeholders in `name`.
     static String expandFilename(String name) {
         String expanded = name;
         if (expanded.contains("%p")) {
             expanded = expanded.replace("%p", Long.toString(LogConfiguration.pid()));
+        }
+        if (expanded.contains("%i")) {
+            expanded = expanded.replace("%i", Long.toString(Isolates.getIsolateId()));
         }
         if (expanded.contains("%t")) {
             expanded = expanded.replace("%t", LogConfiguration.startupTimestamp());

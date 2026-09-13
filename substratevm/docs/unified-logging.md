@@ -307,12 +307,15 @@ paths, with or without the `file=` prefix.
 
 ## File output and failure handling
 
-`LogFileOutput` expands `%p`, `%t`, and `%hn`, converts the result to an absolute
-path, prepares the native active and archive paths, and opens the active file
-when the output is created. It does not create missing parent directories. If
-opening fails, it emits an emergency diagnostic containing the path and native
-error code, leaves the output configured, and does not abort the VM. A later
-event for an output whose descriptor is unavailable is safely ignored.
+`LogFileOutput` expands `%p`, `%i`, `%t`, and `%hn`, converts the result to an
+absolute path, prepares the native active and archive paths, and opens the active
+file when the output is created. The `%i` placeholder is an SVM extension that
+expands to the current isolate ID, allowing isolates in the same process to use
+distinct output files; `%p` alone identifies only the process. File output does
+not create missing parent directories. If opening fails, it emits an emergency
+diagnostic containing the path and native error code, leaves the output
+configured, and does not abort the VM. A later event for an output whose
+descriptor is unavailable is safely ignored.
 
 Normal writes use the platform-specific `RawFileOperationSupport` implementation;
 `LoggingSupport` supplies the platform-specific archive delete and rename
@@ -390,7 +393,7 @@ SVM uses the same broad configuration model but a smaller runtime design:
 | Synchronous output locking | `FileLocker` protects writes; a rotation semaphore covers file rotation. | Stream outputs use an uninterruptible critical section to serialize no-transition native writes with a dedicated `VMMutex`; file outputs use the same pattern with a prebuilt `VMMutex` across the no-transition write, accounting, rotation, and reopen. VM operations use the same serialized paths. |
 | Asynchronous buffering and locking | Native ping-pong buffers and producer and consumer synchronization protect the queue. | One native chunk contains a variable number of word-aligned raw records with inline bytes. Native ring state, `VMMutex` producer and consumer locks, and a `VMCondition` coordinate publication, waiting, consumption, flushing, and VM teardown. The daemon consumer waits in native state and is terminated before the chunk is freed at isolate destruction. |
 | Decoration state | Resolved event decorations can remain in asynchronous messages. | Event-only decorations live in fast thread-local state and are copied into each asynchronous queue record; line levels remain explicit per line or record. |
-| File rotation | Native C++ file streams and rotation locks. An existing active file is archived at startup when rotation is enabled. | Precomputed native paths, native byte counters, and raw close/delete/rename/reopen operations. An existing active file is truncated at startup regardless of rotation settings. |
+| File rotation | Native C++ file streams and rotation locks. An existing active file is archived at startup when rotation is enabled. | Precomputed native paths, native byte counters, and raw close/delete/rename/reopen operations. An existing active file is truncated at startup regardless of rotation settings. The `%i` filename placeholder separates isolate-local rotation state into distinct operating-system paths. |
 | JFR integration | JFR writes directly through HotSpot unified logging. | SVM preserves its standalone `FlightRecorderLogging` output and optionally emits a second copy through unified logging. |
 | Allocation contract | Native C++ allocation rules apply. | Successful event processing, including dual JFR routing, is explicitly Java-heap allocation-free; native buffers may grow. |
 
