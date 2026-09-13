@@ -243,9 +243,6 @@ public final class LogConfiguration {
                 /* Capture every value required by either side of the configuration transition. */
                 tagSet.updateDecorators(transitionDecorators);
             }
-            if (level != null) {
-                tagSet.outputList().setOutputLevel(output, level);
-            }
         }
         for (LogTagSet tagSet : LogTagSet.VALUES) {
             if (affectedTagSets[tagSet.ordinal()]) {
@@ -256,7 +253,13 @@ public final class LogConfiguration {
             drainAsyncWriter();
             output.setDecorators(decorators);
             for (LogTagSet tagSet : LogTagSet.VALUES) {
-                tagSet.updateDecorators();
+                if (affectedTagSets[tagSet.ordinal()]) {
+                    LogLevel level = selections.levelFor(tagSet);
+                    if (level != null) {
+                        tagSet.outputList().setOutputLevel(output, level);
+                    }
+                    tagSet.updateDecorators();
+                }
             }
         } finally {
             /* A failed reconfiguration must not leave future logging blocked. */
